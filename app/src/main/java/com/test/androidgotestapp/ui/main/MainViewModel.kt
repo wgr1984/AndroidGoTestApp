@@ -1,20 +1,32 @@
 package com.test.androidgotestapp.ui.main
 
-import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import gotestlib.PhotosCallback
+import androidx.lifecycle.viewModelScope
+import com.test.androidgotestapp.loadPhotos
+import gotestlib.Photo
+import kotlinx.coroutines.launch
+import com.test.androidgotestapp.Failure
+import com.test.androidgotestapp.Success
+import gotestlib.PhotoWrapper
 
 class MainViewModel : ViewModel() {
-    val api = gotestlib.Api()
+
+    private val api = gotestlib.Api()
+
+    private val mutPhotos = MutableLiveData<List<Photo>>()
+    val photos: LiveData<List<Photo>> = mutPhotos
 
     fun loadPhotos() {
-        api.getPhotos { photos, err ->
-            if (err != null) {
-                Log.e(MainViewModel::class.simpleName, "load error", err)
-                return@getPhotos
-            }
-            for (i in 0..photos.itemsCount) {
-                println(photos.getItem(i)?.title)
+        viewModelScope.launch {
+            val loadedPhotos = api.loadPhotos()
+            if (loadedPhotos is Success<PhotoWrapper>) {
+                val photoList = loadedPhotos.right.run { 0..itemsCount }.map(loadedPhotos.right::getItem)
+                mutPhotos.postValue(photoList)
+            } else if (loadedPhotos is Failure<PhotoWrapper>) {
+                println("Erro: ${loadedPhotos.left}")
+                mutPhotos.postValue(listOf(Photo().apply { url = "not found !" }))
             }
         }
     }
